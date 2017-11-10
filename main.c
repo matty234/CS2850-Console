@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
 
         if (args[0] != NULL) {
             if (strncmp(args[0], "exit", 4) == 0) {         // On `exit`, exit
-                printf("Exiting...");
+                printf("Exiting...\n");
                 return EXIT_SUCCESS;
             } else if (strncmp(args[0], "cd", 2) == 0) {    // On `cd`, change directory
                 if (chdir(args[1]) != 0) {
