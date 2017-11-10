@@ -15,6 +15,6 @@ string.h
 -
 unistd.h
 -
-sys/wait.h
+errno.h
 -
 
