@@ -22,8 +22,7 @@
  * @param sz the size of the buffer to read
  * @return the entered line
  */
-char *readLine(int sz) {
-    char *buf = malloc(sz * sizeof(char *));
+char *readLine(char *buf, int sz) {
     fgets(buf, sz, stdin);
 
     size_t ln = strlen(buf) - 1;
@@ -122,8 +121,8 @@ int main(int argc, char *argv[]) {
         } else {
             printf("%s", PROMPT);                           // Show prompt without path
         }
-
-        char *buf = readLine(inputBufferSize);
+        char *buf = malloc(inputBufferSize * sizeof(char *));
+        readLine(buf, inputBufferSize);
         char *args[sizeof(char *) * MAX_ARG_LENGTH * MAX_ARGS];
         split(buf, args, MAX_ARG_LENGTH);                   // Split arguments
 
