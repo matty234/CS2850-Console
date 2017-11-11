@@ -10,6 +10,7 @@
 #define MAX_ARGS 20
 #define MAX_ARG_LENGTH 100
 #define PROGRAM_NAME "mash"
+#define TOKEN_DELIMETER " \t\r\n\a"
 #define PROMPT "\e[1;31mMASH >\033[0m "
 
 /*
@@ -37,7 +38,6 @@ char *readLine(char *buf, int sz) {
         buf[ln + 1] = '\0';                                 // Add null terminator
     }
 
-
     if (strlen(buf) == 0) {                                 // Return null if the string is empty after manipulation
         return NULL;
     } else {
@@ -60,7 +60,7 @@ void printHelp() {
  * @param max the maximum length of each parameter
  */
 void split(char *buf, char *split[], size_t max) {
-    char *token = strtok(buf, " \t\r\n\a");                 // Break on any new line, tab, space, or return
+    char *token = strtok(buf, TOKEN_DELIMETER);             // Break on any new line, tab, space, or return
     int c = 0;
     while (token != NULL) {
         split[c] = (char *) malloc(max);
@@ -68,9 +68,9 @@ void split(char *buf, char *split[], size_t max) {
             char *comb = malloc(max);
             do {
                 strncat(comb, token, strlen(token));        // Add first segment to speech mark delimited phrase
-                token = strtok(NULL, " \t\r\n\a");          // Check if current token is the final in sequence...
+                token = strtok(NULL, TOKEN_DELIMETER);      // Check if current token is the final in sequence...
                 if (token != NULL && token[strlen(token) - 1] == '\"') {
-                    strcat(comb, " \t\r\n\a");              // Add final space
+                    strcat(comb, " ");                      // Add final space
                     strncat(comb, token, strlen(token));
                     token = NULL;                           // Force exit of special case token capture
                 }
@@ -80,12 +80,12 @@ void split(char *buf, char *split[], size_t max) {
             strncpy(split[c], comb, strlen(comb));          // Add phrase to token array
             c++;
         } else {
-            strncpy(split[c], token, strlen(token));       // Add token to token array
+            strncpy(split[c], token, strlen(token));        // Add token to token array
             c++;
         }
-        token = strtok(NULL, " \t\r\n\a");                 // Move to next token
+        token = strtok(NULL, TOKEN_DELIMETER);              // Move to next token
     }
-    split[c] = 0;                                          // Null terminate final array item
+    split[c] = 0;                                           // Null terminate final array item
 }
 
 /**
@@ -110,7 +110,7 @@ void execute(char *split[]) {
 int main(int argc, char *argv[]) {
     int inputBufferSize = sizeof(char) * BUFFER_SIZE;
 
-    if(argc > 1) {
+    if (argc > 1) {
         execute(argv + 1);                                  // Execute initially provided parameters
     }
 
@@ -134,10 +134,10 @@ int main(int argc, char *argv[]) {
                 if (chdir(args[1]) != 0) {
                     perror(PROGRAM_NAME);
                 }
-            } else if (strncmp(args[0], "help", 4) == 0) {   // On `help`, show help
+            } else if (strncmp(args[0], "help", 4) == 0) {  // On `help`, show help
                 printHelp();
             } else {
-                execute(args);                               // Otherwise, perform standard execute
+                execute(args);                              // Otherwise, perform standard execute
             }
         }
     }
