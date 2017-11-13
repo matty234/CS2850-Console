@@ -23,7 +23,7 @@
  * @param sz the size of the buffer to read
  * @return the entered line
  */
-char *readLine(char *buf, int sz) {
+char *read_line(char *buf, int sz) {
     fgets(buf, sz, stdin);
 
     size_t ln = strlen(buf) - 1;
@@ -79,6 +79,7 @@ void split(char *buf, char *split[], size_t max) {
             comb[strlen(comb) - 1] = 0;                     // Ignore closing speech mark
             strncpy(split[c], comb, strlen(comb));          // Add phrase to token array
             c++;
+            free(comb);
         } else {
             strncpy(split[c], token, strlen(token));        // Add token to token array
             c++;
@@ -122,7 +123,7 @@ int main(int argc, char *argv[]) {
             printf("%s", PROMPT);                           // Show prompt without path
         }
         char *buf = malloc(inputBufferSize * sizeof(char *));
-        readLine(buf, inputBufferSize);
+        read_line(buf, inputBufferSize);
         char *args[sizeof(char *) * MAX_ARG_LENGTH * MAX_ARGS];
         split(buf, args, MAX_ARG_LENGTH);                   // Split arguments
 
@@ -140,6 +141,7 @@ int main(int argc, char *argv[]) {
                 execute(args);                              // Otherwise, perform standard execute
             }
         }
+        free(buf);
     }
     return EXIT_FAILURE;
 }
