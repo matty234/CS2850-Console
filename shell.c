@@ -64,22 +64,35 @@ void split(char *buf, char *split[], size_t max) {
     int c = 0;
     while (token != NULL) {
         split[c] = (char *) malloc(max);
-        if (token[0] == '"') {                              // Start special condition for open speech marks
+        if (strncmp(token, "\"\"", 2) == 0) {
+            strncpy(split[c], "", 1);
+            c++;
+        } else if (token[0] == '\"') {
             char *comb = malloc(max);
+            char *atEnd = 0;
+            token++;
             do {
-                strncat(comb, token, strlen(token));        // Add first segment to speech mark delimited phrase
-                token = strtok(NULL, TOKEN_DELIMETER);      // Check if current token is the final in sequence...
-                if (token != NULL && (token[strlen(token) - 1] == '\"'
-                                      || token[1] == '\"')) {
-                    strcat(comb, " ");                      // Add final space
+                strncat(comb, token, strlen(token));
+                strcat(comb, " ");
+                token = strtok(NULL, TOKEN_DELIMETER);
+                if (token != NULL && strchr(token, '"')) {
                     strncat(comb, token, strlen(token));
-                    token = NULL;                           // Force exit of special case token capture
+                    token = NULL;
                 }
             } while (token != NULL);
-            comb++;                                         // Ignore opening speech mark
-            comb[strlen(comb) - 1] = 0;                     // Ignore closing speech mark
-            strncpy(split[c], comb, strlen(comb));          // Add phrase to token array
+
+            char *atSpeechMark = strchr(comb, '"');
+            *atSpeechMark = 0;
+            strcpy(split[c], comb);
             c++;
+
+            char *v = (atSpeechMark + 1);
+            if (*v != '\0') {
+                split[c] = (char *) malloc(max);
+                atSpeechMark++;
+                strcpy(split[c], atSpeechMark);
+                c++;
+            }
         } else {
             strncpy(split[c], token, strlen(token));        // Add token to token array
             c++;
@@ -145,3 +158,4 @@ int main(int argc, char *argv[]) {
     }
     return EXIT_FAILURE;
 }
+
