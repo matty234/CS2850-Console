@@ -69,7 +69,8 @@ void split(char *buf, char *split[], size_t max) {
             do {
                 strncat(comb, token, strlen(token));        // Add first segment to speech mark delimited phrase
                 token = strtok(NULL, TOKEN_DELIMETER);      // Check if current token is the final in sequence...
-                if (token != NULL && token[strlen(token) - 1] == '\"') {
+                if (token != NULL && (token[strlen(token) - 1] == '\"'
+                                      || token[1] == '\"')) {
                     strcat(comb, " ");                      // Add final space
                     strncat(comb, token, strlen(token));
                     token = NULL;                           // Force exit of special case token capture
