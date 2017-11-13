@@ -23,7 +23,7 @@
  * @param sz the size of the buffer to read
  * @return the entered line
  */
-char *read_line(char *buf, int sz) {
+char *read_line(char *buf, size_t sz) {
     fgets(buf, sz, stdin);
 
     size_t ln = strlen(buf) - 1;
@@ -79,7 +79,6 @@ void split(char *buf, char *split[], size_t max) {
             comb[strlen(comb) - 1] = 0;                     // Ignore closing speech mark
             strncpy(split[c], comb, strlen(comb));          // Add phrase to token array
             c++;
-            free(comb);
         } else {
             strncpy(split[c], token, strlen(token));        // Add token to token array
             c++;
