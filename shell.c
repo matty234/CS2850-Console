@@ -63,36 +63,42 @@ void split(char *buf, char *split[], size_t max) {
     char *token = strtok(buf, TOKEN_DELIMETER);             // Break on any new line, tab, space, or return
     int c = 0;
     while (token != NULL) {
-        split[c] = (char *) malloc(max);
-        if (strncmp(token, "\"\"", 2) == 0) {
+        split[c] = (char *) malloc(max);                    // Allocate memory for the next parameter in the array
+        if (strncmp(token, "\"\"", 2) == 0) {               // Ignore `""`
             strncpy(split[c], "", 1);
             c++;
-        } else if (token[0] == '\"') {
-            char *comb = malloc(max);
-            char *atEnd = 0;
-            token++;
+        } else if (token[0] == '\"') {                      // Case: on an opening speech mark
+            char *comb = malloc(max);                       // Allocate a space for the concatenated strings
+            token++;                                        // Ignore the opening mark
             do {
-                strncat(comb, token, strlen(token));
-                strcat(comb, " ");
-                token = strtok(NULL, TOKEN_DELIMETER);
-                if (token != NULL && strchr(token, '"')) {
+                strncat(comb, token, strlen(token));        // Add the string to 'comb'
+                strcat(comb, " ");                          // Add space to parameters
+                token = strtok(NULL, TOKEN_DELIMETER);      // Move to next token
+                char* testch = strchr(token, '"');
+                if (token != NULL && testch) {  // If this token contains the closing mark or is the final parameter
                     strncat(comb, token, strlen(token));
                     token = NULL;
                 }
             } while (token != NULL);
 
             char *atSpeechMark = strchr(comb, '"');
-            *atSpeechMark = 0;
-            strcpy(split[c], comb);
-            c++;
-
-            char *v = (atSpeechMark + 1);
-            if (*v != '\0') {
-                split[c] = (char *) malloc(max);
-                atSpeechMark++;
-                strcpy(split[c], atSpeechMark);
+            if(atSpeechMark == NULL) {
+                comb[strlen(comb) - 1] = '\0';
+                strcpy(split[c], comb);
                 c++;
+            } else {
+                *atSpeechMark = 0;                          // Convert speech mark to null character
+                strcpy(split[c], comb);
+                c++;
+                char *v = (atSpeechMark + 1);
+                if (*v != '\0') {
+                    split[c] = (char *) malloc(max);
+                    atSpeechMark++;
+                    strcpy(split[c], atSpeechMark);
+                    c++;
+                }
             }
+
         } else {
             strncpy(split[c], token, strlen(token));        // Add token to token array
             c++;
