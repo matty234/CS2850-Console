@@ -70,17 +70,22 @@ void split(char *buf, char *split[], size_t max) {
         } else if (token[0] == '\"') {                      // Case: on an opening speech mark
             char *comb = malloc(max);                       // Allocate a space for the concatenated strings
             token++;                                        // Ignore the opening mark
-            do {
-                strncat(comb, token, strlen(token));        // Add the string to 'comb'
-                strcat(comb, " ");                          // Add space to parameters
-                token = strtok(NULL, TOKEN_DELIMETER);      // Move to next token
-                char* testch = strchr(token, '"');
-                if (token != NULL && testch) {  // If this token contains the closing mark or is the final parameter
-                    strncat(comb, token, strlen(token));
-                    token = NULL;
-                }
-            } while (token != NULL);
 
+            if(strchr(token, '"')) {
+                strncpy(comb, token, strlen(token));
+            } else {
+                while(token != NULL && !strchr(token, '"')) {
+                    strncat(comb, token, strlen(token));        // Add the string to 'comb'
+                    token = strtok(NULL, TOKEN_DELIMETER);      // Move to next token
+                    if(token != NULL) {
+                        strcat(comb, " ");                          // Add space to parameters
+                    }
+                    if(strchr(token, '"')) {
+                        strncat(comb, token, strlen(token));        // Add the string to 'comb'
+                    }
+                }
+            }
+            
             char *atSpeechMark = strchr(comb, '"');
             if(atSpeechMark == NULL) {
                 comb[strlen(comb) - 1] = '\0';
