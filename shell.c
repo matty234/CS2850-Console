@@ -75,20 +75,21 @@ void split(char *buf, char *split[], size_t max) {
                 strncpy(comb, token, strlen(token));
             } else {
                 while(token != NULL && !strchr(token, '"')) {
-                    strncat(comb, token, strlen(token));        // Add the string to 'comb'
-                    token = strtok(NULL, TOKEN_DELIMETER);      // Move to next token
-                    if(token != NULL) {
-                        strcat(comb, " ");                          // Add space to parameters
+                    strncat(comb, token, strlen(token));     // Add the string to 'comb'
+                    token = strtok(NULL, TOKEN_DELIMETER);   // Move to next token
+                    if (token != NULL) {
+                        strcat(comb, " ");                   // Add space to parameters
+                        if (strchr(token, '"')) {
+                            strncat(comb, token, strlen(token)); // Add the string to 'comb'
+                        }
                     }
-                    if(strchr(token, '"')) {
-                        strncat(comb, token, strlen(token));        // Add the string to 'comb'
-                    }
+
                 }
             }
-            
+            // HANDLE "a edge case
             char *atSpeechMark = strchr(comb, '"');
             if(atSpeechMark == NULL) {
-                comb[strlen(comb) - 1] = '\0';
+                comb[strlen(comb)] = '\0';
                 strcpy(split[c], comb);
                 c++;
             } else {
