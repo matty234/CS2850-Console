@@ -59,7 +59,7 @@ void printHelp() {
  * @param split a pointer to the output string array
  * @param max the maximum length of each parameter
  */
-void split(char *buf, char *split[], size_t max) {
+void split(char *buf, char *split[], int* blocking, size_t max) {
     char *token = strtok(buf, TOKEN_DELIMETER);             // Break on any new line, tab, space, or return
     int c = 0;
     while (token != NULL) {
@@ -111,14 +111,29 @@ void split(char *buf, char *split[], size_t max) {
         }
         token = strtok(NULL, TOKEN_DELIMETER);              // Move to next token
     }
+
+    if(c > 0) {
+        size_t finalStrLength = strlen(split[c - 1]);
+        if(split[c - 1][finalStrLength - 1] == '&') {
+            *blocking = 1;
+            split[c - 1][finalStrLength - 1] = '\0';
+            if(finalStrLength == 1) {
+                c--;
+            }
+        } else {
+            *blocking = 0;
+        }
+    }
+
     split[c] = 0;                                           // Null terminate final array item
+
 }
 
 /**
  * Executes the given array of commands in a subprocess
  * @param split the array of strings representing a command
  */
-void execute(char *split[]) {
+void execute(char *split[], int block) {
     pid_t pid = fork();
     if (pid == 0) {
         execvp(split[0], split);                            // Execute and look in PATH for binaries
@@ -128,7 +143,10 @@ void execute(char *split[]) {
         }
         exit(EXIT_SUCCESS);
     } else {
-        wait(NULL);                                         // Wait for subprocess to finish
+        waitpid(pid, NULL, (block == 1)?WNOHANG:0);                               // Wait for subprocess to finish
+        if(block == 1) {
+            printf("[%d]\n", pid);
+        }
     }
 }
 
@@ -137,7 +155,7 @@ int main(int argc, char *argv[]) {
     int inputBufferSize = sizeof(char) * BUFFER_SIZE;
 
     if (argc > 1) {
-        execute(argv + 1);                                  // Execute initially provided parameters
+        execute(argv + 1, 0);                                  // Execute initially provided parameters
     }
 
     while (&free) {
@@ -150,7 +168,9 @@ int main(int argc, char *argv[]) {
         char *buf = malloc(inputBufferSize * sizeof(char *));
         read_line(buf, inputBufferSize);
         char *args[sizeof(char *) * MAX_ARG_LENGTH * MAX_ARGS];
-        split(buf, args, MAX_ARG_LENGTH);                   // Split arguments
+
+        int blocking = 0;
+        split(buf, args, &blocking, MAX_ARG_LENGTH);                   // Split arguments
 
         if (args[0] != NULL) {
             if (strncmp(args[0], "exit", 4) == 0) {         // On `exit`, exit
@@ -163,7 +183,7 @@ int main(int argc, char *argv[]) {
             } else if (strncmp(args[0], "help", 4) == 0) {  // On `help`, show help
                 printHelp();
             } else {
-                execute(args);                              // Otherwise, perform standard execute
+                execute(args, blocking);                    // Otherwise, perform standard execute
             }
         }
         free(buf);
