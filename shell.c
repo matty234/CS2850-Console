@@ -18,6 +18,26 @@
  * All questions answered
  */
 
+
+typedef struct statement {
+    char *argv[MAX_ARGS];
+    int argc;
+    FILE *input_redir;
+    FILE *output_redir;
+    char terminator;
+    int blocking;
+    struct statement *next;
+} statement;
+
+
+
+statement* createStatement(){
+    statement *temp;
+    temp = malloc(sizeof(statement));
+    temp->next = NULL;
+    return temp;
+}
+
 /**
  * Reads a line from the console and returns a character array.
  * @param sz the size of the buffer to read
@@ -53,19 +73,55 @@ void printHelp() {
     printf("Built-Ins: cd, exit, help\n");
 }
 
+void addToArgV(int* c, statement* statement, char * text) {
+    statement->argv[*c] = malloc(sizeof(char*));
+    strcpy(statement->argv[*c], text);
+    (*c)++;
+}
+
 /**
  * Tokenises a string by the space delimeter and adds a null value to array
  * @param buf a pointer to the string
  * @param split a pointer to the output string array
  * @param max the maximum length of each parameter
  */
-void split(char *buf, char *split[], int* blocking, size_t max) {
+void split(char *buf, statement* statement, size_t max) {
     char *token = strtok(buf, TOKEN_DELIMETER);             // Break on any new line, tab, space, or return
     int c = 0;
+
     while (token != NULL) {
-        split[c] = (char *) malloc(max);                    // Allocate memory for the next parameter in the array
-        if (strncmp(token, "\"\"", 2) == 0) {               // Ignore `""`
-            strncpy(split[c], "", 1);
+        if (strlen(token)>0 && (token[0] == ';' || token[strlen(token)-1] == ';')) { // TODO Allow speech etc. to happen before ;
+
+            if(token[0] == ';') {
+                statement->argv[c] = 0;
+            } else {
+                token[strlen(token) -1] = 0;
+                addToArgV(&c, statement, token);
+                statement->argv[c + 1] = 0;
+            }
+
+            if(c > 0) {
+                size_t finalStrLength = strlen(statement->argv[c - 1]);
+                if(statement->argv[c - 1][finalStrLength - 1] == '&') {
+                    statement->blocking = 1;
+                    statement->argv[c - 1][finalStrLength - 1] = '\0';
+                    if(finalStrLength == 1) {
+                        c--;
+                    }
+                } else {
+                    statement->blocking = 0;
+                }
+            }
+
+            statement->argc = c;
+
+            c = 0;
+
+            statement->next = createStatement();
+            statement = statement->next;
+
+        } else if (strncmp(token, "\"\"", 2) == 0) {               // Ignore `""`
+            strncpy(statement->argv[c], "", 1);
             c++;
         } else if (token[0] == '\"') {                      // Case: on an opening speech mark
             char *comb = malloc(max);                       // Allocate a space for the concatenated strings
@@ -90,44 +146,31 @@ void split(char *buf, char *split[], int* blocking, size_t max) {
             char *atSpeechMark = strchr(comb, '"');
             if(atSpeechMark == NULL) {
                 comb[strlen(comb)] = '\0';
-                strcpy(split[c], comb);
-                c++;
+                addToArgV(&c, statement, comb);
             } else {
                 *atSpeechMark = 0;                          // Convert speech mark to null character
-                strcpy(split[c], comb);
-                c++;
+                statement->argv[c] = malloc(sizeof(char*));
+                addToArgV(&c, statement, comb);
                 char *v = (atSpeechMark + 1);
                 if (*v != '\0') {
-                    split[c] = (char *) malloc(max);
                     atSpeechMark++;
-                    strcpy(split[c], atSpeechMark);
-                    c++;
+                    addToArgV(&c, statement, atSpeechMark);
                 }
             }
 
         } else {
-            strncpy(split[c], token, strlen(token));        // Add token to token array
-            c++;
+            addToArgV(&c, statement, token);
         }
         token = strtok(NULL, TOKEN_DELIMETER);              // Move to next token
     }
 
-    if(c > 0) {
-        size_t finalStrLength = strlen(split[c - 1]);
-        if(split[c - 1][finalStrLength - 1] == '&') {
-            *blocking = 1;
-            split[c - 1][finalStrLength - 1] = '\0';
-            if(finalStrLength == 1) {
-                c--;
-            }
-        } else {
-            *blocking = 0;
-        }
-    }
 
-    split[c] = 0;                                           // Null terminate final array item
+    statement->argv[c] = 0;                                           // Null terminate final array item
+    statement->argc = c;
+    statement->next = NULL;
 
 }
+
 
 /**
  * Executes the given array of commands in a subprocess
@@ -152,7 +195,7 @@ void execute(char *split[], int block) {
 
 
 int main(int argc, char *argv[]) {
-    int inputBufferSize = sizeof(char) * BUFFER_SIZE;
+    size_t inputBufferSize = sizeof(char) * BUFFER_SIZE;
 
     if (argc > 1) {
         execute(argv + 1, 0);                                  // Execute initially provided parameters
@@ -167,26 +210,28 @@ int main(int argc, char *argv[]) {
         }
         char *buf = malloc(inputBufferSize * sizeof(char *));
         read_line(buf, inputBufferSize);
-        char *args[sizeof(char *) * MAX_ARG_LENGTH * MAX_ARGS];
 
-        int blocking = 0;
-        split(buf, args, &blocking, MAX_ARG_LENGTH);                   // Split arguments
+        statement* temp = createStatement();
 
-        if (args[0] != NULL) {
-            if (strncmp(args[0], "exit", 4) == 0) {         // On `exit`, exit
-                printf("Exiting...\n");
-                return EXIT_SUCCESS;
-            } else if (strncmp(args[0], "cd", 2) == 0) {    // On `cd`, change directory
-                if (chdir(args[1]) != 0) {
-                    perror(PROGRAM_NAME);
+        split(buf, temp, MAX_ARG_LENGTH);                   // Split arguments
+
+
+        for (; temp != NULL; temp = temp->next) {
+            if (temp->argv[0] != NULL) {
+                if (strncmp(temp->argv[0], "exit", 4) == 0) {         // On `exit`, exit
+                    printf("Exiting...\n");
+                    return EXIT_SUCCESS;
+                } else if (strncmp(temp->argv[0], "cd", 2) == 0) {    // On `cd`, change directory
+                    if (chdir(temp->argv[1]) != 0) {
+                        perror(PROGRAM_NAME);
+                    }
+                } else if (strncmp(temp->argv[0], "help", 4) == 0) {  // On `help`, show help
+                    printHelp();
+                } else {
+                    execute((*temp).argv, (*temp).blocking);                    // Otherwise, perform standard execute
                 }
-            } else if (strncmp(args[0], "help", 4) == 0) {  // On `help`, show help
-                printHelp();
-            } else {
-                execute(args, blocking);                    // Otherwise, perform standard execute
             }
         }
-        free(buf);
     }
     return EXIT_FAILURE;
 }
