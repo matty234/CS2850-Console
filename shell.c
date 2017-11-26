@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include "shellutil.h"
 
 #define BUFFER_SIZE 1000
 #define MAX_ARGS 20
@@ -17,26 +18,6 @@
  * By 6602
  * All questions answered
  */
-
-
-typedef struct statement {
-    char *argv[MAX_ARGS];
-    int argc;
-    FILE *input_redir;
-    FILE *output_redir;
-    char terminator;
-    int blocking;
-    struct statement *next;
-} statement;
-
-
-
-statement* createStatement(){
-    statement *temp;
-    temp = malloc(sizeof(statement));
-    temp->next = NULL;
-    return temp;
-}
 
 /**
  * Reads a line from the console and returns a character array.
@@ -73,12 +54,6 @@ void printHelp() {
     printf("Built-Ins: cd, exit, help\n");
 }
 
-void addToArgV(int* c, statement* statement, char * text) {
-    statement->argv[*c] = malloc(sizeof(char*));
-    strcpy(statement->argv[*c], text);
-    (*c)++;
-}
-
 /**
  * Tokenises a string by the space delimeter and adds a null value to array
  * @param buf a pointer to the string
@@ -90,21 +65,23 @@ void split(char *buf, statement* statement, size_t max) {
     int c = 0;
 
     while (token != NULL) {
-        if (strlen(token)>0 && (token[0] == ';' || token[strlen(token)-1] == ';')) { // TODO Allow speech etc. to happen before ;
+        char commandBroken = isCommandBreak(token);
+        if (strlen(token)>0 && commandBroken) { // TODO Allow speech etc. to happen before ;
 
-            if(token[0] == ';') {
-                statement->argv[c] = 0;
-            } else {
-                token[strlen(token) -1] = 0;
-                addToArgV(&c, statement, token);
-                statement->argv[c + 1] = 0;
+            if(commandBroken == ';') {
+                if(token[0] == ';') {
+                    statement->argv[c] = 0;
+                } else {
+                    token[strlen(token) -1] = 0;
+                    addToArgV(&c, statement, token);
+                    statement->argv[c + 1] = 0;
+                }
             }
 
             if(c > 0) {
                 size_t finalStrLength = strlen(statement->argv[c - 1]);
-                if(statement->argv[c - 1][finalStrLength - 1] == '&') {
+                if(commandBroken == '&') {
                     statement->blocking = 1;
-                    statement->argv[c - 1][finalStrLength - 1] = '\0';
                     if(finalStrLength == 1) {
                         c--;
                     }
@@ -114,7 +91,7 @@ void split(char *buf, statement* statement, size_t max) {
             }
 
             statement->argc = c;
-
+            statement->terminator = commandBroken;
             c = 0;
 
             statement->next = createStatement();
@@ -176,7 +153,10 @@ void split(char *buf, statement* statement, size_t max) {
  * Executes the given array of commands in a subprocess
  * @param split the array of strings representing a command
  */
-void execute(char *split[], int block) {
+void execute(statement *stmt) {
+    int block = stmt->blocking;
+    char **split = stmt->argv;
+
     pid_t pid = fork();
     if (pid == 0) {
         execvp(split[0], split);                            // Execute and look in PATH for binaries
@@ -197,9 +177,9 @@ void execute(char *split[], int block) {
 int main(int argc, char *argv[]) {
     size_t inputBufferSize = sizeof(char) * BUFFER_SIZE;
 
-    if (argc > 1) {
+    /*if (argc > 1) {
         execute(argv + 1, 0);                                  // Execute initially provided parameters
-    }
+    }*/
 
     while (&free) {
         char cwd[1024];
@@ -228,7 +208,7 @@ int main(int argc, char *argv[]) {
                 } else if (strncmp(temp->argv[0], "help", 4) == 0) {  // On `help`, show help
                     printHelp();
                 } else {
-                    execute((*temp).argv, (*temp).blocking);                    // Otherwise, perform standard execute
+                    execute(temp);                    // Otherwise, perform standard execute
                 }
             }
         }
