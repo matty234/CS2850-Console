@@ -18,7 +18,6 @@ typedef struct statement {
     FILE *input_redir;
     FILE *output_redir;
     char terminator;
-    int blocking;
     struct statement *next;
 } statement;
 
@@ -27,5 +26,7 @@ statement *createStatement();
 void addToArgV(int *c, statement *statement, char *text);
 
 char isCommandBreak(char *token);
+
+char *read_line(char *buf, size_t sz);
 
 #endif //CONSOLE_SHELLUTIL_H
