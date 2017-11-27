@@ -83,6 +83,11 @@ void split_statements(char *buf, statement *statement, size_t max) {
             token = strtok(NULL, TOKEN_DELIMETER);
             statement->output_redir = fopen(token ,"a");
 
+        } else if (strlen(token) == 2 && token[0] == '2' && token[1] == '>') {
+
+            token = strtok(NULL, TOKEN_DELIMETER);
+            statement->output_err_redir = fopen(token ,"w");
+
         } else if (strlen(token) == 1 && token[0] == '<') {
 
             token = strtok(NULL, TOKEN_DELIMETER);
@@ -122,7 +127,6 @@ void split_statements(char *buf, statement *statement, size_t max) {
                     addToArgV(statement, atSpeechMark);
                 }
             }
-
         } else {
             addToArgV(statement, token);
         }
@@ -132,7 +136,7 @@ void split_statements(char *buf, statement *statement, size_t max) {
 
     statement->argv[statement->argc] = 0;                                           // Null terminate final array item
     statement->next = NULL;
-
+    free(token);
 }
 
 
@@ -143,12 +147,20 @@ void split_statements(char *buf, statement *statement, size_t max) {
 void execute_statement(statement *stmt) {
     char **split = stmt->argv;
     int stdoutCopy = 0;
+    int stderrCopy = 0;
     int stdinCopy = 0;
 
     if(stmt->output_redir) {
         stdoutCopy = dup(STDOUT_FILENO);
         int outputFile = fileno(stmt->output_redir);
         if(dup2(outputFile, STDOUT_FILENO) < 0) return;
+        close(outputFile);
+    }
+
+    if(stmt->output_err_redir) {
+        stderrCopy = dup(STDERR_FILENO);
+        int outputFile = fileno(stmt->output_err_redir);
+        if(dup2(outputFile, STDERR_FILENO) < 0) return;
         close(outputFile);
     }
 
@@ -178,11 +190,17 @@ void execute_statement(statement *stmt) {
             close(stdoutCopy);
         }
 
+        if(stmt->output_err_redir) {
+            if(dup2(stderrCopy, STDERR_FILENO) < 0) return;
+            close(stderrCopy);
+        }
+
         if(stmt->input_redir) {
             if(dup2(stdinCopy, STDIN_FILENO) < 0) return;
             close(stdinCopy);
         }
     }
+
 }
 
 
@@ -193,7 +211,8 @@ int main(int argc, char *argv[]) {
         statement *newStatement = createStatement();
         memcpy(newStatement->argv, argv, sizeof(statement));
         newStatement->argc = argc;
-        execute_statement(newStatement);                                  // Execute initially provided parameters
+        execute_statement(newStatement);
+        free(newStatement);
     }
 
     while (&free) {
@@ -211,7 +230,7 @@ int main(int argc, char *argv[]) {
         split_statements(buf, temp, MAX_ARG_LENGTH);                   // Split arguments
 
 
-        for (; temp != NULL; temp = temp->next) {
+        while (temp != NULL) {
             if (temp->argv[0] != NULL) {
                 if (strncmp(temp->argv[0], "exit", 4) == 0) {         // On `exit`, exit
                     printf("Exiting...\n");
@@ -226,7 +245,11 @@ int main(int argc, char *argv[]) {
                     execute_statement(temp);                    // Otherwise, perform standard execute_statement
                 }
             }
+            struct statement *oldtemp = temp;
+            temp = temp->next;
+            free(oldtemp);
         }
+
     }
     return EXIT_FAILURE;
 }

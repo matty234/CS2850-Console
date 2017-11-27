@@ -17,6 +17,7 @@ typedef struct statement {
     int argc;
     FILE *input_redir;
     FILE *output_redir;
+    FILE *output_err_redir;
     char terminator;
     struct statement *next;
 } statement;
