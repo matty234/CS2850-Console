@@ -3,48 +3,17 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnusedImportStatement"
 #include <sys/types.h>
 #include <sys/wait.h>
 #include "shellutil.h"
-
-#define BUFFER_SIZE 1000
-#define MAX_ARGS 20
-#define MAX_ARG_LENGTH 100
-#define PROGRAM_NAME "mash"
-#define TOKEN_DELIMETER " \t\r\n\a"
-#define PROMPT "\e[1;31mMASH >\033[0m "
 
 /*
  * By 6602
  * All questions answered
  */
 
-/**
- * Reads a line from the console and returns a character array.
- * @param sz the size of the buffer to read
- * @return the entered line
- */
-char *read_line(char *buf, size_t sz) {
-    fgets(buf, sz, stdin);
-
-    size_t ln = strlen(buf) - 1;
-
-    if (feof(stdin)) {
-        exit(EXIT_SUCCESS);                                 // Exit when CTRL-D is received
-    }
-
-    if (*buf && buf[ln] == '\n') {
-        buf[ln] = '\0';                                     // Replace new line with null terminator
-    } else {
-        buf[ln + 1] = '\0';                                 // Add null terminator
-    }
-
-    if (strlen(buf) == 0) {                                 // Return null if the string is empty after manipulation
-        return NULL;
-    } else {
-        return buf;
-    }
-}
 
 /**
  * Prints a simple help message
@@ -55,7 +24,7 @@ void printHelp() {
 }
 
 /**
- * Tokenises a string by the space delimeter and adds a null value to array
+ * Tokenises a string by the space delimiter and adds a null value to array
  * @param buf a pointer to the string
  * @param split a pointer to the output string array
  * @param max the maximum length of each parameter
@@ -78,17 +47,12 @@ void split(char *buf, statement* statement, size_t max) {
                 }
             }
 
-            if(c > 0) {
-                size_t finalStrLength = strlen(statement->argv[c - 1]);
-                if(commandBroken == '&') {
-                    statement->blocking = 1;
-                    if(finalStrLength == 1) {
-                        c--;
-                    }
-                } else {
-                    statement->blocking = 0;
-                }
+            if(commandBroken == '&') {
+                token[strlen(token) -1] = 0;
+                addToArgV(&c, statement, token);
+                statement->argv[c + 1] = 0;
             }
+
 
             statement->argc = c;
             statement->terminator = commandBroken;
@@ -100,6 +64,16 @@ void split(char *buf, statement* statement, size_t max) {
         } else if (strncmp(token, "\"\"", 2) == 0) {               // Ignore `""`
             strncpy(statement->argv[c], "", 1);
             c++;
+        } else if ((token[0] == '>' || strlen(token) == 1) && token[1] != '>') {
+
+            token = strtok(NULL, TOKEN_DELIMETER);
+            statement->output_redir = fopen(token ,"w");
+
+        } else if (token[0] == '>' &&  strlen(token) == 2 && token[1] == '>') {
+
+            token = strtok(NULL, TOKEN_DELIMETER);
+            statement->output_redir = fopen(token ,"a");
+
         } else if (token[0] == '\"') {                      // Case: on an opening speech mark
             char *comb = malloc(max);                       // Allocate a space for the concatenated strings
             token++;                                        // Ignore the opening mark
@@ -154,8 +128,14 @@ void split(char *buf, statement* statement, size_t max) {
  * @param split the array of strings representing a command
  */
 void execute(statement *stmt) {
-    int block = stmt->blocking;
     char **split = stmt->argv;
+    int stdoutCopy = 0;
+    if(stmt->output_redir) {
+        stdoutCopy = dup(1);
+        int outputFile = fileno(stmt->output_redir);
+        if(dup2(outputFile, STDOUT_FILENO) < 0) return;
+        close(outputFile);
+    }
 
     pid_t pid = fork();
     if (pid == 0) {
@@ -166,9 +146,14 @@ void execute(statement *stmt) {
         }
         exit(EXIT_SUCCESS);
     } else {
-        waitpid(pid, NULL, (block == 1)?WNOHANG:0);                               // Wait for subprocess to finish
-        if(block == 1) {
+        waitpid(pid, NULL, (stmt->terminator == '&')?WNOHANG:0);                               // Wait for subprocess to finish
+        if(stmt->terminator == '&') {
             printf("[%d]\n", pid);
+        }
+
+        if(stmt->output_redir) {
+            if(dup2(stdoutCopy, STDOUT_FILENO) < 0) return;
+            close(stdoutCopy);
         }
     }
 }
@@ -177,9 +162,12 @@ void execute(statement *stmt) {
 int main(int argc, char *argv[]) {
     size_t inputBufferSize = sizeof(char) * BUFFER_SIZE;
 
-    /*if (argc > 1) {
-        execute(argv + 1, 0);                                  // Execute initially provided parameters
-    }*/
+    if (argc > 1) {
+        statement *newStatement = createStatement();
+        memcpy(newStatement->argv, argv, sizeof(statement));
+        newStatement->argc = argc;
+        execute(newStatement);                                  // Execute initially provided parameters
+    }
 
     while (&free) {
         char cwd[1024];
@@ -216,3 +204,5 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
 }
 
+
+#pragma clang diagnostic pop
