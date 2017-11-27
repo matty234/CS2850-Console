@@ -8,12 +8,12 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include "shellutil.h"
+#pragma clang diagnostic pop
 
 /*
  * By 6602
  * All questions answered
  */
-
 
 /**
  * Prints a simple help message
@@ -29,65 +29,79 @@ void printHelp() {
  * @param split a pointer to the output string array
  * @param max the maximum length of each parameter
  */
-void split(char *buf, statement* statement, size_t max) {
+void split_statements(char *buf, statement *statement, size_t max) {
     char *token = strtok(buf, TOKEN_DELIMETER);             // Break on any new line, tab, space, or return
-    int c = 0;
 
     while (token != NULL) {
         char commandBroken = isCommandBreak(token);
-        if (strlen(token)>0 && commandBroken) { // TODO Allow speech etc. to happen before ;
+        if (strlen(token)>0 && commandBroken) {
 
             if(commandBroken == ';') {
                 if(token[0] == ';') {
-                    statement->argv[c] = 0;
+                    statement->argv[statement->argc] = 0;
                 } else {
                     token[strlen(token) -1] = 0;
-                    addToArgV(&c, statement, token);
-                    statement->argv[c + 1] = 0;
+                    addToArgV(statement, token);
                 }
             }
 
-            if(commandBroken == '&') {
+            if(strlen(token) != 1 && commandBroken == '&') {
                 token[strlen(token) -1] = 0;
-                addToArgV(&c, statement, token);
-                statement->argv[c + 1] = 0;
+                addToArgV(statement, token);
             }
 
-
-            statement->argc = c;
+            statement->argv[statement->argc] = 0;
             statement->terminator = commandBroken;
-            c = 0;
+
 
             statement->next = createStatement();
-            statement = statement->next;
 
-        } else if (strncmp(token, "\"\"", 2) == 0) {               // Ignore `""`
-            strncpy(statement->argv[c], "", 1);
-            c++;
-        } else if ((token[0] == '>' || strlen(token) == 1) && token[1] != '>') {
+            if(commandBroken == '|') {
+
+                FILE *readable;
+                FILE *writable;
+
+                fpipe(&readable, &writable);
+
+                statement->output_redir = writable;
+                statement = statement->next;
+                statement->input_redir = readable;
+
+            } else {
+                statement = statement->next;
+            }
+
+        } else if (strcmp(token, "\"\"") == 0) {               // Ignore `""`
+            addToArgV(statement, "");
+        } else if (strlen(token) == 1 && token[0] == '>') {
 
             token = strtok(NULL, TOKEN_DELIMETER);
             statement->output_redir = fopen(token ,"w");
 
-        } else if (token[0] == '>' &&  strlen(token) == 2 && token[1] == '>') {
+        } else if (strlen(token) == 2 && token[0] == '>' && token[1] == '>') {
 
             token = strtok(NULL, TOKEN_DELIMETER);
             statement->output_redir = fopen(token ,"a");
+
+        } else if (strlen(token) == 1 && token[0] == '<') {
+
+            token = strtok(NULL, TOKEN_DELIMETER);
+            statement->input_redir = fopen(token ,"r");
 
         } else if (token[0] == '\"') {                      // Case: on an opening speech mark
             char *comb = malloc(max);                       // Allocate a space for the concatenated strings
             token++;                                        // Ignore the opening mark
 
             if(strchr(token, '"')) {
-                strncpy(comb, token, strlen(token));
+                strcpy(comb, token);
             } else {
                 while(token != NULL && !strchr(token, '"')) {
-                    strncat(comb, token, strlen(token));     // Add the string to 'comb'
+                    strcat(comb, token);     // Add the string to 'comb'
                     token = strtok(NULL, TOKEN_DELIMETER);   // Move to next token
                     if (token != NULL) {
                         strcat(comb, " ");                   // Add space to parameters
                         if (strchr(token, '"')) {
-                            strncat(comb, token, strlen(token)); // Add the string to 'comb'
+                            strcat(comb, token); // Add the string to 'comb'
                         }
                     }
 
@@ -97,27 +111,26 @@ void split(char *buf, statement* statement, size_t max) {
             char *atSpeechMark = strchr(comb, '"');
             if(atSpeechMark == NULL) {
                 comb[strlen(comb)] = '\0';
-                addToArgV(&c, statement, comb);
+                addToArgV(statement, comb);
             } else {
                 *atSpeechMark = 0;                          // Convert speech mark to null character
-                statement->argv[c] = malloc(sizeof(char*));
-                addToArgV(&c, statement, comb);
+                statement->argv[statement->argc] = malloc(sizeof(char*));
+                addToArgV(statement, comb);
                 char *v = (atSpeechMark + 1);
                 if (*v != '\0') {
                     atSpeechMark++;
-                    addToArgV(&c, statement, atSpeechMark);
+                    addToArgV(statement, atSpeechMark);
                 }
             }
 
         } else {
-            addToArgV(&c, statement, token);
+            addToArgV(statement, token);
         }
         token = strtok(NULL, TOKEN_DELIMETER);              // Move to next token
     }
 
 
-    statement->argv[c] = 0;                                           // Null terminate final array item
-    statement->argc = c;
+    statement->argv[statement->argc] = 0;                                           // Null terminate final array item
     statement->next = NULL;
 
 }
@@ -127,14 +140,23 @@ void split(char *buf, statement* statement, size_t max) {
  * Executes the given array of commands in a subprocess
  * @param split the array of strings representing a command
  */
-void execute(statement *stmt) {
+void execute_statement(statement *stmt) {
     char **split = stmt->argv;
     int stdoutCopy = 0;
+    int stdinCopy = 0;
+
     if(stmt->output_redir) {
-        stdoutCopy = dup(1);
+        stdoutCopy = dup(STDOUT_FILENO);
         int outputFile = fileno(stmt->output_redir);
         if(dup2(outputFile, STDOUT_FILENO) < 0) return;
         close(outputFile);
+    }
+
+    if(stmt->input_redir) {
+        stdinCopy = dup(STDIN_FILENO);
+        int inputFile = fileno(stmt->input_redir);
+        if(dup2(inputFile, STDIN_FILENO) < 0) return;
+        close(inputFile);
     }
 
     pid_t pid = fork();
@@ -146,7 +168,7 @@ void execute(statement *stmt) {
         }
         exit(EXIT_SUCCESS);
     } else {
-        waitpid(pid, NULL, (stmt->terminator == '&')?WNOHANG:0);                               // Wait for subprocess to finish
+        waitpid(pid, NULL, (stmt->terminator == '&') ? WNOHANG : 0);                               // Wait for subprocess to finish
         if(stmt->terminator == '&') {
             printf("[%d]\n", pid);
         }
@@ -154,6 +176,11 @@ void execute(statement *stmt) {
         if(stmt->output_redir) {
             if(dup2(stdoutCopy, STDOUT_FILENO) < 0) return;
             close(stdoutCopy);
+        }
+
+        if(stmt->input_redir) {
+            if(dup2(stdinCopy, STDIN_FILENO) < 0) return;
+            close(stdinCopy);
         }
     }
 }
@@ -166,7 +193,7 @@ int main(int argc, char *argv[]) {
         statement *newStatement = createStatement();
         memcpy(newStatement->argv, argv, sizeof(statement));
         newStatement->argc = argc;
-        execute(newStatement);                                  // Execute initially provided parameters
+        execute_statement(newStatement);                                  // Execute initially provided parameters
     }
 
     while (&free) {
@@ -176,12 +203,12 @@ int main(int argc, char *argv[]) {
         } else {
             printf("%s", PROMPT);                           // Show prompt without path
         }
-        char *buf = malloc(inputBufferSize * sizeof(char *));
+        char *buf = malloc(inputBufferSize);
         read_line(buf, inputBufferSize);
 
         statement* temp = createStatement();
 
-        split(buf, temp, MAX_ARG_LENGTH);                   // Split arguments
+        split_statements(buf, temp, MAX_ARG_LENGTH);                   // Split arguments
 
 
         for (; temp != NULL; temp = temp->next) {
@@ -196,13 +223,10 @@ int main(int argc, char *argv[]) {
                 } else if (strncmp(temp->argv[0], "help", 4) == 0) {  // On `help`, show help
                     printHelp();
                 } else {
-                    execute(temp);                    // Otherwise, perform standard execute
+                    execute_statement(temp);                    // Otherwise, perform standard execute_statement
                 }
             }
         }
     }
     return EXIT_FAILURE;
 }
-
-
-#pragma clang diagnostic pop

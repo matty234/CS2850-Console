@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <memory.h>
 #include "shellutil.h"
 
@@ -16,6 +17,10 @@ statement* createStatement(){
     statement *temp;
     temp = malloc(sizeof(statement));
     temp->next = NULL;
+    temp->input_redir = NULL;
+    temp->output_redir = NULL;
+    temp->argc = 0;
+    temp->terminator = 0;
     return temp;
 }
 
@@ -25,11 +30,10 @@ statement* createStatement(){
  * @param statement current statement
  * @param text text to add
  */
-void addToArgV(int* c, statement* statement, char * text) {
-    statement->argv[*c] = malloc(sizeof(char*));
-    statement->output_redir = NULL;
-    strcpy(statement->argv[*c], text);
-    (*c)++;
+void addToArgV(statement* statement, char * text) {
+    statement->argv[statement->argc] = malloc(sizeof(char*));
+    strcpy(statement->argv[statement->argc], text);
+    (statement->argc)++;
 }
 
 /**
@@ -42,6 +46,8 @@ char isCommandBreak(char* token) {
         return ';';
     } else if (token[0] == '&' || token[strlen(token)-1] == '&') {
         return '&';
+    } else if (token[0] == '|' || token[strlen(token)-1] == '|') {
+        return '|';
     } else {
         return 0;
     }
@@ -72,4 +78,12 @@ char *read_line(char *buf, size_t sz) {
     } else {
         return buf;
     }
+}
+
+int fpipe(FILE **readable, FILE **writable) {
+    int fd[2];
+    pipe(fd);
+    *readable = fdopen(fd[0], "r");
+    *writable = fdopen(fd[1], "w");
+    return 0;
 }

@@ -6,7 +6,7 @@
 #define CONSOLE_SHELLUTIL_H
 
 #define BUFFER_SIZE 1000
-#define MAX_ARGS 20
+#define MAX_ARGS 40
 #define MAX_ARG_LENGTH 100
 #define PROGRAM_NAME "mash"
 #define TOKEN_DELIMETER " \t\r\n\a"
@@ -23,10 +23,12 @@ typedef struct statement {
 
 statement *createStatement();
 
-void addToArgV(int *c, statement *statement, char *text);
+void addToArgV(statement *statement, char *text);
 
 char isCommandBreak(char *token);
 
 char *read_line(char *buf, size_t sz);
+
+int fpipe(FILE **readable, FILE **writable);
 
 #endif //CONSOLE_SHELLUTIL_H
