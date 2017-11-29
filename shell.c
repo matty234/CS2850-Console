@@ -9,6 +9,9 @@
 #include <sys/wait.h>
 #include "shellutil.h"
 #pragma clang diagnostic pop
+#include <unistd.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 /*
  * By 6602
@@ -236,8 +239,12 @@ int main(int argc, char *argv[]) {
                     printf("Exiting...\n");
                     return EXIT_SUCCESS;
                 } else if (strncmp(temp->argv[0], "cd", 2) == 0) {    // On `cd`, change directory
-                    if (chdir(temp->argv[1]) != 0) {
-                        perror(PROGRAM_NAME);
+                    if (temp->argv[1] != NULL) {
+                        if (chdir(temp->argv[1]) != 0) {
+                            perror(PROGRAM_NAME);
+                        }
+                    } else {
+                        chdir(getpwuid(getuid())->pw_dir);
                     }
                 } else if (strncmp(temp->argv[0], "help", 4) == 0) {  // On `help`, show help
                     printHelp();
