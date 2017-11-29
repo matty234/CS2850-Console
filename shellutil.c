@@ -19,6 +19,7 @@ statement* createStatement(){
     temp->next = NULL;
     temp->input_redir = NULL;
     temp->output_redir = NULL;
+    temp->output_err_redir = NULL;
     temp->argc = 0;
     temp->terminator = 0;
     return temp;
