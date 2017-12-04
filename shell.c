@@ -13,8 +13,6 @@
 
 #pragma clang diagnostic pop
 
-
-
 /*
  * By 6602
  * All questions answered
@@ -363,14 +361,12 @@ int main(int argc, char *argv[]) {
             struct statement *oldtemp = temp;
             temp = temp->next;
 
-
             char ** oldCommandStrings = oldtemp->argv;
             size_t i = 0;
             for( i = 0; i < oldtemp->argc; i++) {
-                free(oldCommandStrings[i]);
+                free(oldCommandStrings[i]);                     // Free pointers in argv
             }
             free(oldtemp);
-
         }
 
     }
